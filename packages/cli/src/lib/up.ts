@@ -89,8 +89,11 @@ export const runUp = async (reporter: UpReporter = NOOP_REPORTER): Promise<UpRes
     copyFileSync(join(assetsDir, "pebble-config.json"), paths.pebbleConfig);
     copyFileSync(join(assetsDir, "docker-compose.yml"), paths.composeFile);
 
-    // 5. state (empty em M1; cf-shim popula em M2)
-    const state = ensureState();
+    // 5. state — garante que `~/.cubolab/state.json` existe (vazio se novo)
+    // antes do compose subir; cf-shim monta via volume e espera arquivo
+    // presente. Leitura/escrita do state em runtime é responsabilidade
+    // exclusiva do cf-shim (via endpoints CRUD + /_admin/clear).
+    ensureState();
 
     // 6. detect compose tool
     const composeTool = await detectCompose();
@@ -108,12 +111,10 @@ export const runUp = async (reporter: UpReporter = NOOP_REPORTER): Promise<UpRes
     reporter.step("ensuring trust bundle");
     const trustBundleDownloaded = await ensureTrustBundle({ hostIp });
 
-    // 10. re-hidratação do challtestsrv a partir do state.
-    // M1: state.dns sempre vazio → loop é no-op.
-    // M2: cf-shim escreve aqui; enviaremos POST /add-a|/add-cname pra challtestsrv.
-    for (const _record of state.dns) {
-        // reservado pra M2
-    }
+    // Hidratação do challtestsrv migrou pro cf-shim — ver
+    // packages/cf-shim/src/lib/hydrate.ts. CLI só garante que o state.json
+    // existe (passo 5); o container cf-shim lê, re-registra no challtestsrv
+    // via /add-* no boot, e só então serve HTTP.
 
     return { hostIp, composeTool, certGenerated, trustBundleDownloaded };
 };

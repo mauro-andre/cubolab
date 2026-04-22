@@ -9,9 +9,7 @@ const fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures")
 const COMPOSE_FILE = `${fixturesDir}/docker-compose.yml`;
 const PROJECT = "cubolab-status-test";
 
-// Força `127.0.0.1` pra casar com o SAN do cert da fixture (o cert tem
-// `192.168.122.1`, `127.0.0.1`, `localhost` no SAN — ver poc README §Quirks).
-// Assim o teste roda mesmo fora de host com libvirt (CI, dev sem virbr0).
+// Força `127.0.0.1` pra casar com o SAN do cert da fixture.
 process.env.CUBOLAB_HOST_IP = "127.0.0.1";
 
 const compose = (args: string[]) =>
@@ -33,6 +31,13 @@ const waitUntil = async (
     throw new Error(`timeout (${timeoutMs}ms) waiting for ${label}`);
 };
 
+// Fixture deste teste contém APENAS pebble + challtestsrv (sem cf-shim),
+// propositalmente — status.test.ts testa o *detector*, não a stack real.
+// cf-shim sempre aparece em `components` (contrato estável), mas fica
+// `running=false` quando não está no compose — o que cria um estado
+// "partial" mesmo com pebble+challtestsrv up. Testes que precisam da
+// stack completa (inclusive cf-shim buildado) vivem em up.test.ts /
+// cf-shim.test.ts que usam o compose real.
 describe("collectStatus — integration", () => {
     beforeAll(async () => {
         await compose(["down", "-v"]);
@@ -48,8 +53,7 @@ describe("collectStatus — integration", () => {
         expect(r.stack).toBe("down");
         expect(r.components.pebble?.running).toBe(false);
         expect(r.components.challtestsrv?.running).toBe(false);
-        expect(r.components.pebble?.healthy).toBe(false);
-        expect(r.components.challtestsrv?.healthy).toBe(false);
+        expect(r.components.cfShim?.running).toBe(false);
     });
 
     it("reporta 'partial' com apenas pebble rodando", async () => {
@@ -64,18 +68,27 @@ describe("collectStatus — integration", () => {
         expect(r.components.pebble?.running).toBe(true);
         expect(r.components.pebble?.healthy).toBe(true);
         expect(r.components.challtestsrv?.running).toBe(false);
+        expect(r.components.cfShim?.running).toBe(false);
         expect(r.stack).toBe("partial");
     }, 120_000);
 
-    it("reporta 'up' com toda a stack saudável", async () => {
+    it("reporta 'partial' com pebble+challtestsrv up (fixture sem cf-shim)", async () => {
         await compose(["up", "-d"]);
-        await waitUntil(async () => (await collectStatus()).stack === "up", 60_000, "stack up");
+        await waitUntil(
+            async () => (await collectStatus()).components.challtestsrv?.healthy === true,
+            60_000,
+            "challtestsrv healthy",
+        );
 
         const r = await collectStatus();
-        expect(r.stack).toBe("up");
         expect(r.components.pebble?.healthy).toBe(true);
         expect(r.components.challtestsrv?.healthy).toBe(true);
+        expect(r.components.cfShim?.running).toBe(false);
+        // Stack "partial" porque cfShim stopped. Shape dos endpoints continua
+        // estável mesmo com component down.
+        expect(r.stack).toBe("partial");
         expect(r.components.pebble?.endpoints.acme).toBe("https://127.0.0.1:14000/dir");
         expect(r.components.challtestsrv?.endpoints.mgmt).toBe("http://127.0.0.1:8055/");
+        expect(r.components.cfShim?.endpoints.api).toBe("http://127.0.0.1:4500");
     }, 120_000);
 });

@@ -16,9 +16,11 @@ const { collectStatus } = await import("../../src/lib/stack.js");
 
 describe("runDown — integration", () => {
     beforeAll(async () => {
-        await execa("podman", ["rm", "-f", "cubolab-pebble", "cubolab-challtestsrv"], {
-            reject: false,
-        });
+        await execa(
+            "podman",
+            ["rm", "-f", "cubolab-pebble", "cubolab-challtestsrv", "cubolab-cf-shim"],
+            { reject: false },
+        );
     }, 60_000);
 
     afterAll(async () => {

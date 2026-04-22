@@ -10,6 +10,7 @@ services:
     pebble:
         image: ghcr.io/letsencrypt/pebble:latest
         container_name: cubolab-pebble
+        restart: on-failure:3
         command:
             - -config=/config/pebble-config.json
             - -dnsserver=10.30.50.3:8053
@@ -30,6 +31,7 @@ services:
     challtestsrv:
         image: ghcr.io/letsencrypt/pebble-challtestsrv:latest
         container_name: cubolab-challtestsrv
+        restart: on-failure:3
         command:
             - -defaultIPv6=
             - -defaultIPv4=
@@ -54,6 +56,7 @@ services:
             context: ${CUBOLAB_CF_SHIM_CONTEXT}
             dockerfile: packages/cf-shim/Dockerfile
         container_name: cubolab-cf-shim
+        restart: on-failure:3
         depends_on:
             - challtestsrv
         ports:

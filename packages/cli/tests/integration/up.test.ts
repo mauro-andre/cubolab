@@ -24,9 +24,11 @@ const compose = (args: readonly string[]) =>
 describe("runUp — integration", () => {
     beforeAll(async () => {
         // Garante estado limpo — caso um run anterior tenha deixado containers.
-        await execa("podman", ["rm", "-f", "cubolab-pebble", "cubolab-challtestsrv"], {
-            reject: false,
-        });
+        await execa(
+            "podman",
+            ["rm", "-f", "cubolab-pebble", "cubolab-challtestsrv", "cubolab-cf-shim"],
+            { reject: false },
+        );
     }, 60_000);
 
     afterAll(async () => {
@@ -56,6 +58,7 @@ describe("runUp — integration", () => {
         expect(report.trustBundle.exists).toBe(true);
         expect(report.components.pebble?.healthy).toBe(true);
         expect(report.components.challtestsrv?.healthy).toBe(true);
+        expect(report.components.cfShim?.healthy).toBe(true);
     }, 180_000);
 
     it("é idempotente: 2º run reusa cert e trust bundle", async () => {

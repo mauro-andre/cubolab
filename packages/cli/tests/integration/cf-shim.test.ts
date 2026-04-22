@@ -142,4 +142,39 @@ describe("cf-shim — CRUD integration (stack real + fetch + dig)", () => {
         expect(await digShort("pre1.e2e.cubolab.dev")).toBe("");
         expect(await digShort("pre2.e2e.cubolab.dev")).toBe("");
     }, 30_000);
+
+    // challtestsrv é in-memory → restart apaga os records. cf-shim hidrata
+    // a partir do state.json no boot (`hydrateFromState`) pra que restart
+    // da stack recupere o DNS sem intervenção do CLI. Este teste valida o
+    // caminho completo: waitForChalltestsrv + hydrate + DNS consistente.
+    it("hidratação após restart: records sobrevivem ao reboot do stack", async () => {
+        await postRecord({ type: "A", name: "hyd.e2e.cubolab.dev", content: "10.4.0.1" });
+        expect(await digShort("hyd.e2e.cubolab.dev")).toBe("10.4.0.1");
+
+        // Restart: challtestsrv perde records in-memory, cf-shim reboots
+        // e chama waitForChalltestsrv + hydrateFromState no startup.
+        await execa("podman", ["restart", "cubolab-challtestsrv", "cubolab-cf-shim"], {
+            timeout: 60_000,
+        });
+
+        const ready = async (): Promise<boolean> => {
+            try {
+                const r = await fetch(`${CF_SHIM}/client/v4/zones/${ZONE_ID}`);
+                return r.ok;
+            } catch {
+                return false;
+            }
+        };
+        const start = Date.now();
+        while (Date.now() - start < 60_000) {
+            if (await ready()) break;
+            await new Promise((r) => setTimeout(r, 500));
+        }
+        expect(await ready()).toBe(true);
+
+        // Record do state re-injetado no challtestsrv via hidratação — dig resolve.
+        expect(await digShort("hyd.e2e.cubolab.dev")).toBe("10.4.0.1");
+
+        await fetch(`${CF_SHIM}/_admin/clear`, { method: "POST" });
+    }, 180_000);
 });

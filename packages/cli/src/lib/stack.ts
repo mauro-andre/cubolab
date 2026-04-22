@@ -43,11 +43,13 @@ export const collectStatus = async (): Promise<StatusReport> => {
 
     const pebbleRunning = containers.has(CONTAINER.pebble);
     const challtestsrvRunning = containers.has(CONTAINER.challtestsrv);
+    const cfShimRunning = containers.has(CONTAINER.cfShim);
 
     const pebbleAcme = `https://${hostIp}:14000/dir`;
     const challtestsrvMgmt = `http://${hostIp}:8055/`;
+    const cfShimApi = `http://${hostIp}:4500/`;
 
-    const [pebble, challtestsrv] = await Promise.all([
+    const [pebble, challtestsrv, cfShim] = await Promise.all([
         buildComponent(
             pebbleRunning,
             {
@@ -64,13 +66,20 @@ export const collectStatus = async (): Promise<StatusReport> => {
             },
             challtestsrvRunning ? challtestsrvMgmt : undefined,
         ),
+        buildComponent(
+            cfShimRunning,
+            {
+                api: `http://${hostIp}:4500`,
+            },
+            cfShimRunning ? cfShimApi : undefined,
+        ),
     ]);
 
-    const components = { pebble, challtestsrv };
+    const components = { pebble, challtestsrv, cfShim };
 
     return {
         version: 1,
-        stack: deriveStack([pebble, challtestsrv]),
+        stack: deriveStack([pebble, challtestsrv, cfShim]),
         components,
         trustBundle: { path: paths.trustBundle, exists: existsSync(paths.trustBundle) },
         composeTool,

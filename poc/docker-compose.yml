@@ -1,0 +1,62 @@
+# Pebble + pebble-challtestsrv — baseado no docker-compose oficial:
+# https://github.com/letsencrypt/pebble/blob/main/docker-compose.yml
+#
+# Pebble é o servidor ACME que emite certs. challtestsrv é um resolver DNS
+# mock + gerenciamento HTTP. Eles formam a dupla mínima pra simular
+# "Let's Encrypt + DNS autoritativo" num ambiente controlado.
+#
+# A rede `acmenet` é interna ao compose. O host expõe:
+#   - 14000 → Pebble ACME directory (HTTPS)
+#   - 15000 → Pebble management API (HTTPS)
+#   - 8053/udp+tcp → challtestsrv DNS
+#   - 8055 → challtestsrv management API (HTTP)
+
+services:
+  pebble:
+    image: ghcr.io/letsencrypt/pebble:latest
+    # -dnsserver faz Pebble resolver hostnames via challtestsrv em vez de
+    # resolver público. Isso permite os workers responderem em hostnames
+    # falsos (ex: meu-app.podcubo.dev) durante HTTP-01 validation.
+    # O ENTRYPOINT da imagem já é o binário `pebble` — passar só as flags.
+    # Config custom + certs em ./config/ (gerados com SAN pra 192.168.122.1
+    # pra que clientes ACME dos workers Vagrant consigam TLS-verify).
+    command:
+      - -config=/config/pebble-config.json
+      - -dnsserver=10.30.50.3:8053
+    volumes:
+      - ./config:/config:ro,Z
+    ports:
+      - "14000:14000"
+      - "15000:15000"
+    environment:
+      # 0 = valida de verdade (queremos isso pra exercitar o caminho real).
+      # 1 = aceita qualquer cert/challenge sem validar.
+      PEBBLE_VA_ALWAYS_VALID: "0"
+      PEBBLE_WFE_NONCEREJECT: "0"
+    networks:
+      acmenet:
+        ipv4_address: 10.30.50.2
+
+  challtestsrv:
+    image: ghcr.io/letsencrypt/pebble-challtestsrv:latest
+    # -defaultIPv4 vazio faz com que hostnames sem record registrado NÃO
+    # resolvam (default seria devolver 127.0.0.1, que confundiria testes).
+    # ENTRYPOINT já é o binário — só as flags.
+    command:
+      - -defaultIPv6=
+      - -defaultIPv4=
+    ports:
+      - "8053:8053/tcp"
+      - "8053:8053/udp"
+      - "8055:8055"
+    networks:
+      acmenet:
+        ipv4_address: 10.30.50.3
+
+networks:
+  acmenet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.30.50.0/24

@@ -1,0 +1,24 @@
+{
+    "name": "cubolab-monorepo",
+    "private": true,
+    "version": "0.0.0",
+    "description": "Monorepo do cubolab — sandbox local de infra pra testar PaaS self-hosted contra Cloudflare + ACME reais, sem IP público nem domínio público.",
+    "type": "module",
+    "workspaces": [
+        "packages/*"
+    ],
+    "scripts": {
+        "typecheck": "npm run --workspaces --if-present typecheck",
+        "test": "npm run --workspaces --if-present test",
+        "build": "npm run --workspaces --if-present build",
+        "lint": "biome check .",
+        "format": "biome check --write .",
+        "check": "npm run typecheck && npm run lint && npm run test"
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.12"
+    }
+}

@@ -1,0 +1,50 @@
+# Copiado pra ~/.cubolab/ em `cubolab up`. Volumes relativos (`./`) resolvem
+# pro diretório do compose file, o que equivale a ~/.cubolab/ em runtime —
+# onde moram pebble-cert.pem, pebble-key.pem e pebble-config.json.
+#
+# container_name fixo pra ambos (cubolab-pebble / cubolab-challtestsrv) é
+# contrato público (ARCH §Public contracts §5). `cubolab status` detecta a
+# stack por lookup desses nomes via `podman ps`/`docker ps`.
+
+services:
+    pebble:
+        image: ghcr.io/letsencrypt/pebble:latest
+        container_name: cubolab-pebble
+        command:
+            - -config=/config/pebble-config.json
+            - -dnsserver=10.30.50.3:8053
+        volumes:
+            - ./pebble-config.json:/config/pebble-config.json:ro,Z
+            - ./pebble-cert.pem:/config/pebble-cert.pem:ro,Z
+            - ./pebble-key.pem:/config/pebble-key.pem:ro,Z
+        ports:
+            - "14000:14000"
+            - "15000:15000"
+        environment:
+            PEBBLE_VA_ALWAYS_VALID: "0"
+            PEBBLE_WFE_NONCEREJECT: "0"
+        networks:
+            acmenet:
+                ipv4_address: 10.30.50.2
+
+    challtestsrv:
+        image: ghcr.io/letsencrypt/pebble-challtestsrv:latest
+        container_name: cubolab-challtestsrv
+        command:
+            - -defaultIPv6=
+            - -defaultIPv4=
+        ports:
+            - "8053:8053/tcp"
+            - "8053:8053/udp"
+            - "8055:8055"
+        networks:
+            acmenet:
+                ipv4_address: 10.30.50.3
+
+networks:
+    acmenet:
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+                - subnet: 10.30.50.0/24

@@ -9,15 +9,16 @@ export const resetCommand = (): Command =>
             try {
                 const result = await runReset();
                 process.stdout.write(`${pc.bold("cubolab reset")}\n\n`);
+
                 const recLabel = result.recordsCleared === 1 ? "record" : "records";
                 process.stdout.write(
                     `  ${pc.dim("state:")}         cleared (${result.recordsCleared} ${recLabel})\n`,
                 );
-                if (result.challtestsrvReachable) {
-                    process.stdout.write(`  ${pc.dim("challtestsrv:")}  cleared\n`);
+                if (result.mode === "via-cf-shim") {
+                    process.stdout.write(`  ${pc.dim("api:")}           cleared (via cf-shim)\n`);
                 } else {
                     process.stdout.write(
-                        `  ${pc.dim("challtestsrv:")}  ${pc.yellow("skipped (not running)")}\n`,
+                        `  ${pc.dim("api:")}           ${pc.yellow("skipped (cf-shim not running)")}\n`,
                     );
                 }
                 process.stdout.write(

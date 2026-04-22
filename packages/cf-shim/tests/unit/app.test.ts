@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../../src/app.js";
 import { parseZones } from "../../src/lib/zones.js";
 import { zoneSchema } from "../../src/schemas/cloudflare.js";
+import { createStubChalltestsrv } from "../helpers/challtestsrv.js";
 
 type CfBody = {
     success: boolean;
@@ -10,7 +11,8 @@ type CfBody = {
     result: unknown;
 };
 
-const buildApp = (env: string) => createApp({ zones: parseZones(env) });
+const buildApp = (env: string) =>
+    createApp({ zones: parseZones(env), challtestsrv: createStubChalltestsrv() });
 
 describe("GET /client/v4/zones/:zoneId", () => {
     it("retorna 200 + CF-shaped response quando zone está cadastrada", async () => {

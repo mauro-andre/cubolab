@@ -14,9 +14,9 @@ services:
             - -config=/config/pebble-config.json
             - -dnsserver=10.30.50.3:8053
         volumes:
-            - ./pebble-config.json:/config/pebble-config.json:ro,Z
-            - ./pebble-cert.pem:/config/pebble-cert.pem:ro,Z
-            - ./pebble-key.pem:/config/pebble-key.pem:ro,Z
+            - ./pebble-config.json:/config/pebble-config.json:ro,z
+            - ./pebble-cert.pem:/config/pebble-cert.pem:ro,z
+            - ./pebble-key.pem:/config/pebble-key.pem:ro,z
         ports:
             - "14000:14000"
             - "15000:15000"
@@ -44,6 +44,11 @@ services:
     # cf-shim: Cloudflare API shim. `build.context` é injetado pelo CLI em
     # `CUBOLAB_CF_SHIM_CONTEXT` (monorepo root) via `import.meta.resolve`.
     # Primeira `up` build a imagem (~1-2min); re-ups usam cache do podman.
+    #
+    # Volume: ~/.cubolab/ do host (injetado em `CUBOLAB_HOME`) monta em /data
+    # do container. `@cubolab/core` resolve `state.json` via env var
+    # CUBOLAB_HOME → /data/state.json. `:Z` é o label SELinux Fedora-friendly
+    # (ver BUILD.md pro trade-off; outros hosts sem SELinux ignoram).
     cf-shim:
         build:
             context: ${CUBOLAB_CF_SHIM_CONTEXT}
@@ -55,6 +60,9 @@ services:
             - "4500:4500"
         environment:
             CUBOLAB_ZONES: ${CUBOLAB_ZONES:-}
+            CUBOLAB_HOME: /data
+        volumes:
+            - ${CUBOLAB_HOME}:/data:z
         networks:
             acmenet:
                 ipv4_address: 10.30.50.4

@@ -8,4 +8,5 @@ export const COMPOSE_PROJECT = "cubolab";
 export const CONTAINER = {
     pebble: "cubolab-pebble",
     challtestsrv: "cubolab-challtestsrv",
+    cfShim: "cubolab-cf-shim",
 } as const;

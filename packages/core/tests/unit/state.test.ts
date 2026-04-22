@@ -4,10 +4,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { emptyState, stateSchema } from "../../src/schemas/state.js";
 
-// Re-importa state.ts de forma fresca pra cada teste — garante que `paths`
-// veja o valor atualizado de `CUBOLAB_HOME`. Paths usa getters, então
-// import único seria suficiente, mas isolamos o diretório por teste pra não
-// cruzar state entre eles.
 let tempHome: string;
 
 beforeEach(() => {
@@ -20,17 +16,37 @@ afterEach(() => {
     delete process.env.CUBOLAB_HOME;
 });
 
+// Record shape CF-completo. Usado nos tests abaixo e nos tests de I/O.
+const sampleRecord = {
+    id: "f3c1-test-uuid-1",
+    type: "A" as const,
+    name: "app.test.dev",
+    content: "192.168.122.12",
+    ttl: 1,
+    proxied: false,
+    zone_id: "zone-test",
+    zone_name: "test.dev",
+    created_on: "2026-04-22T00:00:00.000Z",
+    modified_on: "2026-04-22T00:00:00.000Z",
+};
+
 describe("state schema", () => {
     it("aceita state vazio válido", () => {
         expect(() => stateSchema.parse(emptyState())).not.toThrow();
     });
 
-    it("aceita state com records", () => {
+    it("aceita state com records completos", () => {
         const valid = {
             version: 1,
             dns: [
-                { type: "A", name: "app.test.dev", content: "192.168.122.12" },
-                { type: "CNAME", name: "www.test.dev", content: "app.test.dev" },
+                sampleRecord,
+                {
+                    ...sampleRecord,
+                    id: "uuid-2",
+                    type: "CNAME",
+                    name: "www.test.dev",
+                    content: "app.test.dev",
+                },
             ],
         };
         expect(() => stateSchema.parse(valid)).not.toThrow();
@@ -44,7 +60,16 @@ describe("state schema", () => {
         expect(() =>
             stateSchema.parse({
                 version: 1,
-                dns: [{ type: "MX", name: "x", content: "y" }],
+                dns: [{ ...sampleRecord, type: "MX" }],
+            }),
+        ).toThrow();
+    });
+
+    it("rejeita record sem campos obrigatórios (id, zone_id, timestamps)", () => {
+        expect(() =>
+            stateSchema.parse({
+                version: 1,
+                dns: [{ type: "A", name: "x", content: "1.2.3.4" }],
             }),
         ).toThrow();
     });
@@ -64,10 +89,7 @@ describe("state I/O", () => {
     it("readState carrega o arquivo existente", async () => {
         const { readState } = await import("../../src/lib/state.js");
         const { paths } = await import("../../src/lib/paths.js");
-        const written = {
-            version: 1,
-            dns: [{ type: "A", name: "x.test.dev", content: "10.0.0.1" }],
-        };
+        const written = { version: 1, dns: [sampleRecord] };
         writeFileSync(paths.state, JSON.stringify(written));
         expect(readState()).toEqual(written);
     });

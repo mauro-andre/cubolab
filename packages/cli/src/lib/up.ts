@@ -64,6 +64,10 @@ const runCompose = async (tool: ComposeTool, subargs: readonly string[]): Promis
         env: {
             ...process.env,
             CUBOLAB_CF_SHIM_CONTEXT: resolveCfShimContext(),
+            // Expandir pra path absoluto — compose precisa bind-mount
+            // pra host filesystem. Sem isso, `${CUBOLAB_HOME}` expansion no
+            // compose lê o valor bruto do ambiente (pode vir unset).
+            CUBOLAB_HOME: paths.base,
         },
     });
 };

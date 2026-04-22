@@ -51,6 +51,11 @@ RUN node -e "const p=require('./package.json');if(p.dependencies?.['@cubolab/cor
 
 RUN npm install --no-package-lock && npm install -D @types/node typescript --no-package-lock
 
+# `npm install file:../core` cria symlink `node_modules/@cubolab/core → ../../core`.
+# Stage 3 runtime só copia `/build/cf-shim/`, então o symlink resolveria pra
+# path inexistente em runtime. Substituímos o symlink por cópia real.
+RUN rm -rf node_modules/@cubolab/core && cp -r ../core node_modules/@cubolab/core
+
 COPY packages/cf-shim/tsconfig.json packages/cf-shim/tsconfig.build.json ./
 COPY packages/cf-shim/src ./src
 RUN npx tsc -p tsconfig.build.json

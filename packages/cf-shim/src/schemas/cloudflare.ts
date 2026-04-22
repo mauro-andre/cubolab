@@ -55,3 +55,28 @@ export const errorResponse = (errors: CfError[]): CfResponse<null> => ({
 // específico para "zone not found" em path válido não consta claramente na
 // API reference; ajustável se aparecer source better (ex: OpenAPI spec).
 export const ZONE_NOT_FOUND_CODE = 7003;
+
+// Schemas de input pros endpoints CRUD de dns_records. Campos extras no body
+// são **descartados silenciosamente** pelo `.parse()` (strip default do zod),
+// mimicando comportamento do CF real — cliente que manda `priority` pra MX
+// (type não suportado) não recebe erro por causa do priority, e sim por
+// causa do type desconhecido.
+export const dnsRecordCreateSchema = z.object({
+    type: z.enum(["A", "CNAME"]),
+    name: z.string().min(1),
+    content: z.string().min(1),
+    ttl: z.number().int().min(1).default(1),
+    proxied: z.boolean().default(false),
+});
+
+export type DnsRecordCreate = z.infer<typeof dnsRecordCreateSchema>;
+
+export const dnsRecordUpdateSchema = z.object({
+    type: z.enum(["A", "CNAME"]).optional(),
+    name: z.string().min(1).optional(),
+    content: z.string().min(1).optional(),
+    ttl: z.number().int().min(1).optional(),
+    proxied: z.boolean().optional(),
+});
+
+export type DnsRecordUpdate = z.infer<typeof dnsRecordUpdateSchema>;

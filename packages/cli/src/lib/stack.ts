@@ -1,17 +1,10 @@
 import { existsSync } from "node:fs";
 import type { Component, StackState, StatusReport } from "../schemas/status.js";
 import { detectCompose, listRunningContainers } from "./compose.js";
+import { CONTAINER } from "./constants.js";
 import { detectHostIp } from "./hostIp.js";
 import { paths } from "./paths.js";
 import { probeHttp } from "./probe.js";
-
-// Contrato firmado pra M1+: compose file usa container_name fixo pra cada
-// service, assim `listRunningContainers` + set membership resolve `running`
-// sem depender do compose file estar presente em disco.
-const CONTAINER = {
-    pebble: "cubolab-pebble",
-    challtestsrv: "cubolab-challtestsrv",
-} as const;
 
 const buildComponent = async (
     running: boolean,

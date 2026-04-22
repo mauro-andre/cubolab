@@ -10,7 +10,8 @@ process.env.CUBOLAB_HOST_IP = "127.0.0.1";
 
 // Imports DEPOIS de setar env vars — garante que `paths` (getters) e outros
 // leitores de env observem o override já na primeira avaliação.
-const { runUp, COMPOSE_PROJECT } = await import("../../src/lib/up.js");
+const { runUp } = await import("../../src/lib/up.js");
+const { COMPOSE_PROJECT } = await import("../../src/lib/constants.js");
 const { paths } = await import("../../src/lib/paths.js");
 const { collectStatus } = await import("../../src/lib/stack.js");
 

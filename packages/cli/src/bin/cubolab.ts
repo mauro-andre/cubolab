@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { caCommand } from "../commands/ca.js";
+import { downCommand } from "../commands/down.js";
+import { logsCommand } from "../commands/logs.js";
+import { resetCommand } from "../commands/reset.js";
 import { statusCommand } from "../commands/status.js";
 import { upCommand } from "../commands/up.js";
 
 const program = new Command();
-
-const notImplemented = (name: string) => (): never => {
-    console.error(`cubolab ${name}: not implemented yet`);
-    process.exit(2);
-};
 
 program
     .name("cubolab")
@@ -16,24 +15,10 @@ program
     .version("0.0.0");
 
 program.addCommand(upCommand());
-
-program
-    .command("down")
-    .description("derruba a stack; mantém state em ~/.cubolab/")
-    .action(notImplemented("down"));
-
-program
-    .command("reset")
-    .description("limpa state, mantém containers")
-    .action(notImplemented("reset"));
-
+program.addCommand(downCommand());
+program.addCommand(resetCommand());
 program.addCommand(statusCommand());
-
-program
-    .command("logs")
-    .description("tail agregado de todos os componentes")
-    .action(notImplemented("logs"));
-
-program.command("ca").description("imprime o path do trust bundle").action(notImplemented("ca"));
+program.addCommand(logsCommand());
+program.addCommand(caCommand());
 
 await program.parseAsync(process.argv);

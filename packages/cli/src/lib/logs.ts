@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
+import { paths } from "@cubolab/core";
 import { execa } from "execa";
 import { detectCompose, listRunningContainers } from "./compose.js";
 import { COMPOSE_PROJECT, CONTAINER } from "./constants.js";
-import { paths } from "./paths.js";
 
 export type LogsOptions = {
     // Default true — convention do ecosistema compose (`logs -f`) é streamar.

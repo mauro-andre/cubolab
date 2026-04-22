@@ -12,7 +12,7 @@ process.env.CUBOLAB_HOST_IP = "127.0.0.1";
 // leitores de env observem o override já na primeira avaliação.
 const { runUp } = await import("../../src/lib/up.js");
 const { COMPOSE_PROJECT } = await import("../../src/lib/constants.js");
-const { paths } = await import("../../src/lib/paths.js");
+const { paths } = await import("@cubolab/core");
 const { collectStatus } = await import("../../src/lib/stack.js");
 
 const compose = (args: readonly string[]) =>

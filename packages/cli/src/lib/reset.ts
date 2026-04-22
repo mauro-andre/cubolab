@@ -1,10 +1,8 @@
 import http from "node:http";
-import type { DnsRecord } from "../schemas/state.js";
-import { emptyState } from "../schemas/state.js";
+import { type DnsRecord, emptyState, readState, writeState } from "@cubolab/core";
 import { detectCompose, listRunningContainers } from "./compose.js";
 import { CONTAINER } from "./constants.js";
 import { detectHostIp } from "./hostIp.js";
-import { readState, writeState } from "./state.js";
 
 export type ResetResult = {
     // Quantos records o state tinha antes do reset (pra reportar "cleared N").

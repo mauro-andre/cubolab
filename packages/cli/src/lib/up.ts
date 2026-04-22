@@ -1,5 +1,6 @@
 import { copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { ensureState, paths } from "@cubolab/core";
 import { execa } from "execa";
 import type { ComposeTool } from "../schemas/status.js";
 import { assetsDir } from "./assets.js";
@@ -7,9 +8,7 @@ import { detectCompose } from "./compose.js";
 import { COMPOSE_PROJECT } from "./constants.js";
 import { ensurePebbleCert } from "./ensureCert.js";
 import { detectHostIp } from "./hostIp.js";
-import { paths } from "./paths.js";
 import { probeHttp } from "./probe.js";
-import { ensureState } from "./state.js";
 import { ensureTrustBundle } from "./trustBundle.js";
 
 export type UpResult = {

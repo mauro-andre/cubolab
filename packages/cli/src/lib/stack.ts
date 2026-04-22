@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
+import { paths } from "@cubolab/core";
 import type { Component, StackState, StatusReport } from "../schemas/status.js";
 import { detectCompose, listRunningContainers } from "./compose.js";
 import { CONTAINER } from "./constants.js";
 import { detectHostIp } from "./hostIp.js";
-import { paths } from "./paths.js";
 import { probeHttp } from "./probe.js";
 
 const buildComponent = async (

@@ -11,7 +11,7 @@ process.env.CUBOLAB_HOST_IP = "127.0.0.1";
 const { runUp } = await import("../../src/lib/up.js");
 const { runDown } = await import("../../src/lib/down.js");
 const { runReset } = await import("../../src/lib/reset.js");
-const { readState, writeState } = await import("../../src/lib/state.js");
+const { readState, writeState } = await import("@cubolab/core");
 
 const HOST_IP = "127.0.0.1";
 

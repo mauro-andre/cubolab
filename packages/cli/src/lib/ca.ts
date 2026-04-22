@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { paths } from "./paths.js";
+import { paths } from "@cubolab/core";
 
 export type CaResult = {
     path: string;

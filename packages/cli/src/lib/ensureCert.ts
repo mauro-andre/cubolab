@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { paths } from "@cubolab/core";
 import { generatePebbleServerCert } from "./certGen.js";
-import { paths } from "./paths.js";
 
 // Gera cert+key se ausentes. Idempotente — segundo `cubolab up` reusa.
 // Retorna true se gerou novo, false se reusou.

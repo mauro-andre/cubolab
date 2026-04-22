@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
+import { paths } from "@cubolab/core";
 import { execa } from "execa";
 import type { ComposeTool } from "../schemas/status.js";
 import { detectCompose, listRunningContainers } from "./compose.js";
 import { COMPOSE_PROJECT, CONTAINER } from "./constants.js";
-import { paths } from "./paths.js";
 
 export type DownResult = {
     // `true` quando `~/.cubolab/docker-compose.yml` não existe — stack nunca

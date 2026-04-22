@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import https from "node:https";
 import { dirname } from "node:path";
-import { paths } from "./paths.js";
+import { paths } from "@cubolab/core";
 
 // Baixa um PEM do endpoint management do Pebble (cert self-signed, accept-all).
 const fetchPem = (url: string, timeoutMs = 10_000): Promise<string> =>

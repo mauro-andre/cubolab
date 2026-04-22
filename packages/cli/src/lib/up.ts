@@ -1,5 +1,6 @@
 import { copyFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ensureState, paths } from "@cubolab/core";
 import { execa } from "execa";
 import type { ComposeTool } from "../schemas/status.js";
@@ -35,6 +36,20 @@ const waitPebbleHealthy = async (hostIp: string, timeoutMs: number): Promise<voi
     throw new Error(`pebble didn't become healthy within ${timeoutMs}ms`);
 };
 
+// Resolve o path do cf-shim package e sobe 2 níveis até o monorepo root (pasta
+// que contém packages/core e packages/cf-shim). O Dockerfile do cf-shim copia
+// explicitamente `packages/core` e `packages/cf-shim` a partir desse context.
+//
+// TODO(M5): em install via node_modules (`node_modules/@cubolab/cf-shim` com
+// `@cubolab/core` em paralelo em `node_modules/@cubolab/core`), a estrutura é
+// diferente — Dockerfile + este resolver precisam adaptar. Pra M2 (monorepo
+// dev), o layout packages/* funciona.
+const resolveCfShimContext = (): string => {
+    const url = import.meta.resolve("@cubolab/cf-shim/package.json");
+    const path = fileURLToPath(url);
+    return dirname(dirname(dirname(path)));
+};
+
 const runCompose = async (tool: ComposeTool, subargs: readonly string[]): Promise<void> => {
     const parts = tool.split(" ");
     const cmd = parts[0];
@@ -46,6 +61,10 @@ const runCompose = async (tool: ComposeTool, subargs: readonly string[]): Promis
     await execa(cmd, [...rest, "-f", paths.composeFile, "-p", COMPOSE_PROJECT, ...subargs], {
         stdio,
         timeout: 300_000,
+        env: {
+            ...process.env,
+            CUBOLAB_CF_SHIM_CONTEXT: resolveCfShimContext(),
+        },
     });
 };
 

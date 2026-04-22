@@ -41,6 +41,24 @@ services:
             acmenet:
                 ipv4_address: 10.30.50.3
 
+    # cf-shim: Cloudflare API shim. `build.context` é injetado pelo CLI em
+    # `CUBOLAB_CF_SHIM_CONTEXT` (monorepo root) via `import.meta.resolve`.
+    # Primeira `up` build a imagem (~1-2min); re-ups usam cache do podman.
+    cf-shim:
+        build:
+            context: ${CUBOLAB_CF_SHIM_CONTEXT}
+            dockerfile: packages/cf-shim/Dockerfile
+        container_name: cubolab-cf-shim
+        depends_on:
+            - challtestsrv
+        ports:
+            - "4500:4500"
+        environment:
+            CUBOLAB_ZONES: ${CUBOLAB_ZONES:-}
+        networks:
+            acmenet:
+                ipv4_address: 10.30.50.4
+
 networks:
     acmenet:
         driver: bridge

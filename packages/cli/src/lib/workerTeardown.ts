@@ -1,4 +1,4 @@
-import { type Distro, type DistroFamily, detectDistro, familyFor } from "./osDetect.js";
+import { type DistroFamily, detectDistro, type ResolvedDistro } from "./osDetect.js";
 import { type SshOptions, sshExec } from "./ssh.js";
 
 const ANCHOR_PATH: Record<DistroFamily, string> = {
@@ -18,7 +18,7 @@ export type TeardownOptions = {
 };
 
 export type TeardownResult = {
-    distro: Distro;
+    distro: ResolvedDistro;
     anchorRemoved: boolean;
     envVarRemoved: boolean;
 };
@@ -35,9 +35,8 @@ export const runTeardown = async (opts: TeardownOptions): Promise<TeardownResult
     };
 
     const distro = await detectDistro(sshOpts);
-    const family = familyFor(distro);
-    const anchorPath = ANCHOR_PATH[family];
-    const updateCmd = UPDATE_CMD[family];
+    const anchorPath = ANCHOR_PATH[distro.family];
+    const updateCmd = UPDATE_CMD[distro.family];
 
     const anchorExists =
         (await sshExec(sshOpts, `test -f "${anchorPath}" && echo YES || echo NO`)).trim() === "YES";

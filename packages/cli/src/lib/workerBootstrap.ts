@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { paths } from "@cubolab/core";
-import { type Distro, type DistroFamily, detectDistro, familyFor } from "./osDetect.js";
+import { type DistroFamily, detectDistro, type ResolvedDistro } from "./osDetect.js";
 import { type SshOptions, scpUpload, sshExec } from "./ssh.js";
 
 const ANCHOR_PATH: Record<DistroFamily, string> = {
@@ -21,7 +21,7 @@ export type BootstrapOptions = {
 };
 
 export type BootstrapResult = {
-    distro: Distro;
+    distro: ResolvedDistro; // inclui `matchedVia` pra output transparente
     anchorPath: string;
     bundleUploaded: boolean; // true = new upload, false = reused (hash match)
     envVarAdded: boolean; // true = appended to /etc/environment, false = already present
@@ -39,9 +39,8 @@ export const runBootstrap = async (opts: BootstrapOptions): Promise<BootstrapRes
     };
 
     const distro = await detectDistro(sshOpts);
-    const family = familyFor(distro);
-    const anchorPath = ANCHOR_PATH[family];
-    const updateCmd = UPDATE_CMD[family];
+    const anchorPath = ANCHOR_PATH[distro.family];
+    const updateCmd = UPDATE_CMD[distro.family];
 
     const localBundle = paths.trustBundle;
     const localHash = sha256File(localBundle);

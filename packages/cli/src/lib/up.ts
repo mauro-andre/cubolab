@@ -26,15 +26,26 @@ export type UpReporter = {
 
 const NOOP_REPORTER: UpReporter = { info: () => {}, step: () => {} };
 
-const waitPebbleHealthy = async (hostIp: string, timeoutMs: number): Promise<void> => {
+const waitHealthy = async (name: string, probeUrl: string, timeoutMs: number): Promise<void> => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-        const r = await probeHttp(`https://${hostIp}:14000/dir`, 1500);
+        const r = await probeHttp(probeUrl, 1500);
         if (r.healthy) return;
         await new Promise((resolve) => setTimeout(resolve, 500));
     }
-    throw new Error(`pebble didn't become healthy within ${timeoutMs}ms`);
+    throw new Error(`${name} didn't become healthy within ${timeoutMs}ms`);
 };
+
+const waitPebbleHealthy = (hostIp: string, timeoutMs: number): Promise<void> =>
+    waitHealthy("pebble", `https://${hostIp}:14000/dir`, timeoutMs);
+
+// cf-shim bind só acontece **depois** de waitForChalltestsrv + hidratação +
+// serve(). `compose up -d` volta quando o container está "started", não
+// quando o processo serve — há janela onde POST chega antes de Hono aceitar,
+// causando ECONNRESET. Probe GET / aguarda o bind real. Hono retorna 404
+// (sem route pra "/") que conta como "healthy" em probeHttp (< 500).
+const waitCfShimHealthy = (hostIp: string, timeoutMs: number): Promise<void> =>
+    waitHealthy("cf-shim", `http://${hostIp}:4500/`, timeoutMs);
 
 // Resolve o path do cf-shim package e sobe 2 níveis até o monorepo root (pasta
 // que contém packages/core e packages/cf-shim). O Dockerfile do cf-shim copia
@@ -103,9 +114,15 @@ export const runUp = async (reporter: UpReporter = NOOP_REPORTER): Promise<UpRes
     reporter.step("starting containers");
     await runCompose(composeTool, ["up", "-d"]);
 
-    // 8. aguarda Pebble healthy antes de baixar trust bundle
-    reporter.step("waiting for pebble");
-    await waitPebbleHealthy(hostIp, 30_000);
+    // 8. aguarda pebble E cf-shim healthy em paralelo antes de retornar.
+    //    - pebble necessário pro trust bundle download (step 9).
+    //    - cf-shim necessário pra consumer (sandbox.up + POST imediato) —
+    //      sem essa espera, há janela ECONNRESET entre `compose up -d` voltar
+    //      e o bind do Hono estar pronto.
+    //    Promise.all serializa só os bottlenecks naturais — se pebble
+    //    demorar mais que cf-shim ou vice-versa, o slower domina.
+    reporter.step("waiting for stack");
+    await Promise.all([waitPebbleHealthy(hostIp, 30_000), waitCfShimHealthy(hostIp, 30_000)]);
 
     // 9. trust bundle (roots/0 + intermediates/0 → trust-bundle.pem). Idempotente.
     reporter.step("ensuring trust bundle");

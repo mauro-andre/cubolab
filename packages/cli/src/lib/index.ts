@@ -27,3 +27,7 @@ export { runReset } from "./reset.js";
 export { collectStatus } from "./stack.js";
 export type { UpReporter, UpResult } from "./up.js";
 export { runUp } from "./up.js";
+export type { BootstrapOptions, BootstrapResult } from "./workerBootstrap.js";
+export { runBootstrap } from "./workerBootstrap.js";
+export type { TeardownOptions, TeardownResult } from "./workerTeardown.js";
+export { runTeardown } from "./workerTeardown.js";

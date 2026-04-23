@@ -90,6 +90,26 @@ Ver `docs/monorepo-resolution.md` pra rationale.
 - `dig` no PATH pra `sandbox.inspect.dns`.
 - Host Linux com SELinux configurado (Fedora) ou sem (Ubuntu/Debian/Alpine).
 
+## Distribuição de trust no worker
+
+`sandbox.trustBundlePath` retorna o path do bundle (`~/.cubolab/trust-bundle.pem`). Consumer é responsável por distribuí-lo pros workers **via o mesmo mecanismo que usaria pra instalar CA corporativa em produção** — tipicamente um step condicional no script de provisioning do worker (provisionar por SSH, copiar o arquivo, rodar `update-ca-trust` ou equivalente).
+
+Razão: em produção o worker confia em CAs do sistema sem comando especial do sandbox. Se dev exige comando extra (`cubolab worker bootstrap` antigo, removido no PR18), o worker **sabe** que é sandbox e perde a simetria dev/prod. Ver PRD §3 princípio 2 corolário.
+
+Exemplo de integração em consumer (PodCubo):
+
+```ts
+// build-provisioning-script.ts
+const script = [...baseSteps];
+const caBundle = process.env.WORKER_CA_BUNDLE;
+if (caBundle) {
+    script.push(`scp ${caBundle} root@${worker}:/etc/pki/ca-trust/source/anchors/cubolab.pem`);
+    script.push(`ssh root@${worker} update-ca-trust`);
+}
+// em prod: WORKER_CA_BUNDLE unset, steps ausentes. Zero if/else runtime.
+// em dev: WORKER_CA_BUNDLE=~/.cubolab/trust-bundle.pem, steps incluídos.
+```
+
 ## Config via options, não env vars
 
 Todas as configurações passam por `sandbox.up({...})`. Internamente, `sandbox` muta `process.env.CUBOLAB_ZONES` / `CUBOLAB_HOST_IP` antes de chamar o CLI — mutação global aceitável porque testes rodam serializados (`fileParallelism: false`). Pra rodar múltiplos sandboxes paralelos no mesmo host ver TODO em `src/sandbox.ts`.

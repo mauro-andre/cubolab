@@ -69,8 +69,7 @@ Subcomandos:
 - `reset` — limpa state sem derrubar containers
 - `status` — verifica endpoints, mostra resumo
 - `logs` — tail agregado
-- `ca` — printa path do trust bundle
-- `worker bootstrap <ssh-target>` — (v1) instala trust bundle no worker remoto
+- `ca` — printa path do trust bundle (consumidor é responsável por distribuí-lo nos workers via seu próprio provisionamento — ver PRD §6.6)
 
 ### ~/.cubolab/ (filesystem state)
 
@@ -110,7 +109,9 @@ Cliente recebe { success: true, result: { id, name, content, ... } }
 Caddy em worker-1 (192.168.122.12)
   detecta hostname "meu-app.test.dev"
   lê Caddyfile: acme_ca https://192.168.122.1:14000/dir
-                acme_ca_root {env.CUBOLAB_TRUST}
+                acme_ca_root <path do bundle distribuído pelo consumidor>
+                            # PodCubo: env var WORKER_CA_BUNDLE no provisioning
+                            # Prod: unset — Caddy usa trust do sistema (Let's Encrypt)
        │
        ▼
 pebble (rodando no host, mapeado pra 192.168.122.1:14000)
@@ -161,7 +162,8 @@ Essas são as superfícies que consumidores (PodCubo e equivalentes) dependem. M
 | `CLOUDFLARE_API_URL` | URL do cf-shim (ex: `http://127.0.0.1:4500/client/v4`) | Driver Cloudflare do cliente |
 | `ACME_CA` | URL do ACME directory do Pebble (ex: `https://192.168.122.1:14000/dir`) | Caddyfile gerado pelo cliente |
 | `NODE_EXTRA_CA_CERTS` | Path pro `trust-bundle.pem` | Node.js runtime do cliente (pra `fetch` contra cf-shim) |
-| `CUBOLAB_TRUST` | Path pro `trust-bundle.pem` no worker (após `worker bootstrap`) | Caddy do worker como `acme_ca_root` |
+
+Distribuição de trust pros workers é **responsabilidade do consumidor** (PodCubo etc) via seu próprio provisionamento — cubolab só expõe o path do bundle. Ver PRD §6.6.
 
 ### 2. CLI — contrato de saída
 
@@ -261,7 +263,7 @@ Veja PRD §8 — cada quirk tem razão técnica e solução definida. Resumo:
 1. Pebble cert server só vale pra 127.0.0.1 por default → regeramos com SAN pro IP do host.
 2. Trust chain é root + intermediate → baixamos e concatenamos os dois.
 3. challtestsrv é stateless → `cf-shim` re-hidrata no startup.
-4. Caddy `acme_ca_root` quer server cert, não CA → bundle correto injetado pelo worker bootstrap.
+4. Caddy `acme_ca_root` quer server cert, não CA → consumidor distribui o bundle correto via seu próprio provisionamento (ver PRD §6.6).
 5. Conflito de porta 80/443 com Caddy do cliente → responsabilidade do cliente parar o seu.
 
 ## Out of scope

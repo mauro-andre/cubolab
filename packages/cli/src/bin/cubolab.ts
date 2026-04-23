@@ -6,7 +6,6 @@ import { logsCommand } from "../commands/logs.js";
 import { resetCommand } from "../commands/reset.js";
 import { statusCommand } from "../commands/status.js";
 import { upCommand } from "../commands/up.js";
-import { workerCommand } from "../commands/worker.js";
 
 const program = new Command();
 
@@ -21,6 +20,5 @@ program.addCommand(resetCommand());
 program.addCommand(statusCommand());
 program.addCommand(logsCommand());
 program.addCommand(caCommand());
-program.addCommand(workerCommand());
 
 await program.parseAsync(process.argv);

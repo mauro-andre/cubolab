@@ -27,7 +27,7 @@ Nasceu como satélite do [PodCubo](https://github.com/bit-cubo/podcubo) (PaaS se
 Listados em ordem de prioridade — quando houver conflito, o mais alto vence.
 
 1. **Reuse over reinvent** — cada peça pronta, mantida upstream (Pebble, challtestsrv), é preferível a código próprio equivalente.
-2. **Real > mock** — sempre que possível, exercitar o caminho real (TLS de verdade, DNS de verdade, ACME de verdade) em vez de simular resultado.
+2. **Real > mock** — sempre que possível, exercitar o caminho real (TLS de verdade, DNS de verdade, ACME de verdade) em vez de simular resultado. **Corolário**: o caminho do dev deve ser o mesmo do prod. Se o sandbox exige um comando/script que produção não exige, o design tem gambiarra — o consumidor vai eventualmente descobrir. Melhor corrigir cedo.
 3. **Zero-config default** — `cubolab up` sem argumento deve funcionar out-of-the-box contra as convenções padrão; configuração é pra casos específicos.
 4. **Reversível sem pegada** — tudo que `up` faz, `down` desfaz. Sem sujeira residual no sistema host.
 5. **Transparência sobre mágica** — stacktrace claro, logs inspecionáveis, estado observável via CLI (`status`). Falhas devem dizer o que quebrou e onde.
@@ -141,20 +141,15 @@ sandbox.acmeDirectoryUrl   // => "https://192.168.122.1:14000/dir"
 sandbox.trustBundlePath    // => "~/.cubolab/trust-bundle.pem"
 ```
 
-### 6.6 Worker bootstrap (opcional helper)
+### 6.6 Distribuição de trust no worker — responsabilidade do consumidor
 
-Como parte da POC apareceu o problema de instalar o trust bundle no worker e configurar Caddy pra apontar pro Pebble. Em v1, `cubolab` entrega um helper:
+Por design (ver princípio 2 corolário em §3), `cubolab` **não** injeta trust bundle nos workers. O consumidor (ex: PodCubo) é responsável por distribuí-lo via o mesmo mecanismo de provisionamento que usa em produção pra instalar CAs corporativos.
 
-```
-cubolab worker bootstrap <ssh-target>
-```
+O cubolab expõe o bundle em path conhecido:
 
-Que:
-1. Copia `trust-bundle.pem` pro worker (via SSH).
-2. Adiciona ao trust store do sistema (`update-ca-trust` ou equivalente).
-3. Exporta path do bundle numa variável conhecida (`CUBOLAB_TRUST=/etc/cubolab/trust.pem`) via `/etc/environment`.
+- `~/.cubolab/trust-bundle.pem` (via `cubolab ca` ou `sandbox.trustBundlePath` do `@cubolab/testing`)
 
-Cliente (PodCubo) usa essa env var no Caddyfile que gera pros workers.
+Consumidor lê esse path e inclui no script de provisionamento quando a env var equivalente estiver setada (ex: no PodCubo, `WORKER_CA_BUNDLE`). Em produção, a env var fica unset e o step é ausência natural no script — sem `if` condicional. Simetria dev/prod.
 
 ## 7. UX / User flow
 
@@ -211,8 +206,7 @@ it("deploys app with real TLS", async () => {
 | 1 | Pebble image vem com cert server só pra `127.0.0.1`; workers via libvirt acessam por `192.168.122.1` e falham TLS | `cubolab up` gera cert server custom com SAN incluindo IP do host libvirt (detectado via `ip route`), monta via volume, aponta config do Pebble pra ele |
 | 2 | Trust chain é root + intermediate; só root não valida certs emitidos | `cubolab up` baixa ambos via management API, concatena em `trust-bundle.pem` |
 | 3 | challtestsrv é in-memory; restart do container perde records | `cf-shim` mantém state em `~/.cubolab/state.json` e re-hidrata o challtestsrv no startup |
-| 4 | Caddy `acme_ca_root` precisa do server cert (não da CA); nomenclatura confusa | Helper `cubolab worker bootstrap` injeta o bundle correto, cliente só referencia `CUBOLAB_TRUST` |
-| 5 | Portas 80/443 no worker podem estar ocupadas por Caddy pré-existente | Responsabilidade do cliente; `cubolab worker bootstrap` NÃO toca processos externos (explicitamente documentado) |
+| 4 | Caddy `acme_ca_root` precisa do server cert (não da CA); nomenclatura confusa | Consumidor distribui bundle correto via seu próprio provisionamento (ver §6.6) — cubolab só expõe o path |
 
 ## 9. Integração com PodCubo
 
@@ -271,13 +265,13 @@ Concluído. Conteúdo em `poc/`. Prova que a tese é sólida.
 
 **Critério**: `npm test` do PodCubo passa sem os guards `.local` no código.
 
-### Milestone 4 — Helper `cubolab/testing` + `cubolab worker bootstrap`
+### Milestone 4 — Helper `@cubolab/testing`
 
 - Empacotar como npm package
-- Documentar API pública
+- Documentar API pública + comportamento (`sandbox.up/down/reset`, `inspect.dns`, `inspect.cloudflareRecords`, `trustBundlePath`)
 - Exemplo completo no README
 
-**Critério**: outro projeto (dummy test repo) consegue integrar cubolab em < 30min lendo só o README.
+**Critério**: outro projeto (dummy test repo) consegue integrar cubolab em < 30min lendo só o README. Distribuição de trust pros workers fica a cargo do consumidor via seu próprio provisionamento (ver §6.6), sem comando específico de sandbox.
 
 ### Milestone 5 — Publicação
 
@@ -303,7 +297,6 @@ Concluído. Conteúdo em `poc/`. Prova que a tese é sólida.
 
 - [ ] Distribuição: npm package executável (`npx cubolab`) ou binário standalone (via `pkg` / `bun compile`)?
 - [ ] Estado persistente: `~/.cubolab/state.json` ou SQLite embedded?
-- [ ] Como o `cubolab worker bootstrap` ganha acesso SSH? Reusa chaves do cliente ou pede path?
 - [ ] Versionamento da API interna entre CLI e cf-shim — semver do package inteiro ou dois packages separados?
 - [ ] Testes do próprio cubolab: como testamos a ferramenta que simula a internet? (meta-sandbox?)
 

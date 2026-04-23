@@ -80,3 +80,24 @@ export const dnsRecordUpdateSchema = z.object({
 });
 
 export type DnsRecordUpdate = z.infer<typeof dnsRecordUpdateSchema>;
+
+// Batch: CF aceita deletes + posts + patches numa única chamada. Todos opcionais.
+// patch = update body + id obrigatório no corpo (não no path).
+export const dnsRecordPatchSchema = z.object({
+    id: z.string().min(1),
+    type: z.enum(["A", "CNAME"]).optional(),
+    name: z.string().min(1).optional(),
+    content: z.string().min(1).optional(),
+    ttl: z.number().int().min(1).optional(),
+    proxied: z.boolean().optional(),
+});
+
+export type DnsRecordPatch = z.infer<typeof dnsRecordPatchSchema>;
+
+export const batchRequestSchema = z.object({
+    deletes: z.array(z.object({ id: z.string().min(1) })).optional(),
+    posts: z.array(dnsRecordCreateSchema).optional(),
+    patches: z.array(dnsRecordPatchSchema).optional(),
+});
+
+export type BatchRequest = z.infer<typeof batchRequestSchema>;

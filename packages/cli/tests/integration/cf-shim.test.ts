@@ -143,6 +143,62 @@ describe("cf-shim — CRUD integration (stack real + fetch + dig)", () => {
         expect(await digShort("pre2.e2e.cubolab.dev")).toBe("");
     }, 30_000);
 
+    it("batch: deletes + posts + patches numa chamada → state + DNS consistentes", async () => {
+        // Pré-condição: 2 records existentes (pra deletar + editar no batch).
+        const old = (
+            (await (
+                await postRecord({ type: "A", name: "old.e2e.cubolab.dev", content: "10.5.0.1" })
+            ).json()) as CfBody<DnsRecord>
+        ).result;
+        const patchable = (
+            (await (
+                await postRecord({ type: "A", name: "patch.e2e.cubolab.dev", content: "10.5.0.2" })
+            ).json()) as CfBody<DnsRecord>
+        ).result;
+        expect(await digShort("old.e2e.cubolab.dev")).toBe("10.5.0.1");
+        expect(await digShort("patch.e2e.cubolab.dev")).toBe("10.5.0.2");
+
+        const res = await fetch(`${CF_SHIM}/client/v4/zones/${ZONE_ID}/dns_records/batch`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                deletes: [{ id: old.id }],
+                posts: [{ type: "A", name: "fresh.e2e.cubolab.dev", content: "10.5.0.3" }],
+                patches: [{ id: patchable.id, content: "10.5.0.99" }],
+            }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as CfBody<{
+            deletes: Array<{ id: string }>;
+            posts: DnsRecord[];
+            patches: DnsRecord[];
+        }>;
+        expect(body.success).toBe(true);
+        expect(body.result.deletes).toHaveLength(1);
+        expect(body.result.posts).toHaveLength(1);
+        expect(body.result.patches).toHaveLength(1);
+
+        // DNS reflete todas as 3 operações.
+        expect(await digShort("old.e2e.cubolab.dev")).toBe("");
+        expect(await digShort("fresh.e2e.cubolab.dev")).toBe("10.5.0.3");
+        expect(await digShort("patch.e2e.cubolab.dev")).toBe("10.5.0.99");
+
+        await fetch(`${CF_SHIM}/_admin/clear`, { method: "POST" });
+    }, 60_000);
+
+    it("purge_cache: no-op retorna success + uuid", async () => {
+        const res = await fetch(`${CF_SHIM}/client/v4/zones/${ZONE_ID}/purge_cache`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ purge_everything: true }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as CfBody<{ id: string }>;
+        expect(body.success).toBe(true);
+        expect(typeof body.result.id).toBe("string");
+        expect(body.result.id.length).toBeGreaterThan(0);
+    }, 30_000);
+
     // challtestsrv é in-memory → restart apaga os records. cf-shim hidrata
     // a partir do state.json no boot (`hydrateFromState`) pra que restart
     // da stack recupere o DNS sem intervenção do CLI. Este teste valida o

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { DnsRecord } from "@cubolab/core";
 import { Hono } from "hono";
 import { CF_CODE } from "./constants.js";
@@ -6,6 +7,7 @@ import type { ChalltestsrvClient } from "./lib/challtestsrv.js";
 import { CfShimError, ValidationError, ZoneNotFoundError } from "./lib/errors.js";
 import { createRecord, deleteRecord, listRecords, updateRecord } from "./lib/records.js";
 import {
+    batchRequestSchema,
     dnsRecordCreateSchema,
     dnsRecordUpdateSchema,
     errorResponse,
@@ -131,6 +133,91 @@ export const createApp = (ctx: AppContext): Hono => {
 
         const result = await deleteRecord(zoneId, recordId, ctx.challtestsrv);
         return c.json(successResponse(result), 200);
+    });
+
+    // POST /client/v4/zones/:zoneId/purge_cache — no-op.
+    // CF real aceita body com { files, tags, hosts, purge_everything }; cubolab
+    // é sandbox sem edge cache, então ignora body inteiro. Consumer lê
+    // `success` e `result.id`.
+    app.post("/client/v4/zones/:zoneId/purge_cache", (c) => {
+        const zoneId = c.req.param("zoneId");
+        if (!ctx.zones.has(zoneId)) throw new ZoneNotFoundError();
+        return c.json(successResponse({ id: randomUUID() }), 200);
+    });
+
+    // POST /client/v4/zones/:zoneId/dns_records/batch — dispatcha operações
+    // pros handlers individuais em ordem CF: deletes → posts → patches.
+    // Best-effort: para no primeiro erro e retorna parciais (mesmo
+    // comportamento do CF real). Cada operação interna aquire
+    // `withStateLock` do próprio handler — batch como um todo NÃO é atômico
+    // (outros requests podem interleave entre operações). Aceitamos isso pra
+    // replicar CF real; consumers que precisam de atomicidade devem usar
+    // lock externo.
+    app.post("/client/v4/zones/:zoneId/dns_records/batch", async (c) => {
+        const zoneId = c.req.param("zoneId");
+        const zone = ctx.zones.get(zoneId);
+        if (!zone) throw new ZoneNotFoundError();
+
+        const rawBody = await c.req.json().catch(() => null);
+        if (rawBody === null) throw new ValidationError("body is not valid JSON");
+
+        const parsed = batchRequestSchema.safeParse(rawBody);
+        if (!parsed.success) {
+            const detail = parsed.error.issues
+                .map((i) => `${i.path.join(".")}: ${i.message}`)
+                .join("; ");
+            throw new ValidationError(detail);
+        }
+
+        const { deletes = [], posts = [], patches = [] } = parsed.data;
+
+        const resultDeletes: Array<{ id: string }> = [];
+        const resultPosts: DnsRecord[] = [];
+        const resultPatches: DnsRecord[] = [];
+
+        try {
+            for (const d of deletes) {
+                resultDeletes.push(await deleteRecord(zoneId, d.id, ctx.challtestsrv));
+            }
+            for (const p of posts) {
+                resultPosts.push(await createRecord({ zone, ...p }, ctx.challtestsrv));
+            }
+            for (const p of patches) {
+                const { id, ...updates } = p;
+                resultPatches.push(await updateRecord(zoneId, id, updates, ctx.challtestsrv));
+            }
+        } catch (err) {
+            const cfErr =
+                err instanceof CfShimError
+                    ? { code: err.code, message: err.message }
+                    : {
+                          code: CF_CODE.INTERNAL,
+                          message: err instanceof Error ? err.message : String(err),
+                      };
+            const status = err instanceof CfShimError ? err.httpStatus : 500;
+            return jsonResponse(
+                {
+                    success: false,
+                    errors: [cfErr],
+                    messages: [] as Array<{ code: number; message: string }>,
+                    result: {
+                        deletes: resultDeletes,
+                        posts: resultPosts,
+                        patches: resultPatches,
+                    },
+                },
+                status,
+            );
+        }
+
+        return c.json(
+            successResponse({
+                deletes: resultDeletes,
+                posts: resultPosts,
+                patches: resultPatches,
+            }),
+            200,
+        );
     });
 
     // POST /_admin/clear — chamado pelo CLI `cubolab reset` quando stack up.

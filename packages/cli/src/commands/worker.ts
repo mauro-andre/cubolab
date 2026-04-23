@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import pc from "picocolors";
+import { formatResolvedDistro } from "../lib/distroFormat.js";
 import { runBootstrap } from "../lib/workerBootstrap.js";
 import { runTeardown } from "../lib/workerTeardown.js";
 
@@ -37,7 +38,9 @@ export const workerCommand = (): Command => {
                     identity: opts.identity,
                     port: parsePort(opts.port),
                 });
-                process.stdout.write(`  ${pc.dim("distro:")}         ${result.distro}\n`);
+                process.stdout.write(
+                    `  ${pc.dim("distro:")}         ${formatResolvedDistro(result.distro)}\n`,
+                );
                 process.stdout.write(`  ${pc.dim("anchor:")}         ${result.anchorPath}\n`);
                 process.stdout.write(
                     `  ${pc.dim("bundle:")}         ${
@@ -76,7 +79,9 @@ export const workerCommand = (): Command => {
                     identity: opts.identity,
                     port: parsePort(opts.port),
                 });
-                process.stdout.write(`  ${pc.dim("distro:")}     ${result.distro}\n`);
+                process.stdout.write(
+                    `  ${pc.dim("distro:")}     ${formatResolvedDistro(result.distro)}\n`,
+                );
                 process.stdout.write(
                     `  ${pc.dim("anchor:")}     ${
                         result.anchorRemoved ? "removed" : pc.yellow("not found (nothing to do)")

@@ -1,7 +1,13 @@
 {
     "extends": "./tsconfig.json",
     "compilerOptions": {
-        "noEmit": false
+        "noEmit": false,
+        "outDir": "./dist",
+        "rootDir": "./src",
+        // Limpa as `paths` herdadas da base (dev-only). Em build, `@cubolab/core`
+        // resolve via package.json/exports → dist/index.js. Requer core ter
+        // sido buildado antes (ordem topológica garantida pelo `build` da raiz).
+        "paths": {}
     },
     "include": ["src/**/*"],
     "exclude": ["tests", "**/*.test.ts"]

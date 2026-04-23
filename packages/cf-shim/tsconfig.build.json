@@ -3,7 +3,9 @@
     "compilerOptions": {
         "noEmit": false,
         "outDir": "./dist",
-        "rootDir": "./src"
+        "rootDir": "./src",
+        // Ver comment em cli/tsconfig.build.json — paths é dev-only.
+        "paths": {}
     },
     "include": ["src/**/*"],
     "exclude": ["tests", "**/*.test.ts"]

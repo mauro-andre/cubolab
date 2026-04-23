@@ -1,0 +1,34 @@
+{
+    "name": "@cubolab/testing",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Helper pra consumer tests: sobe/derruba o sandbox cubolab de dentro do test runner (vitest, jest, etc) + inspeciona estado da stack.",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "test": "vitest run --passWithNoTests",
+        "build": "tsc -p tsconfig.build.json"
+    },
+    "engines": {
+        "node": ">=22"
+    },
+    "devDependencies": {
+        "@types/node": "^25.6.0",
+        "tsx": "^4.21.0",
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.5"
+    },
+    "dependencies": {
+        "@cubolab/core": "^0.0.0",
+        "cubolab": "^0.0.0",
+        "execa": "^9.6.1"
+    }
+}

@@ -1,0 +1,13 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": false,
+        "outDir": "./dist",
+        "rootDir": "./src",
+        // Ver docs/monorepo-resolution.md — paths é dev-only; em build, `cubolab`
+        // e `@cubolab/core` resolvem via package.json/exports → dist.
+        "paths": {}
+    },
+    "include": ["src/**/*"],
+    "exclude": ["tests", "**/*.test.ts"]
+}

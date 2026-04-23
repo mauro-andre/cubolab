@@ -16,7 +16,8 @@
         "declaration": true,
         "sourceMap": true,
         "paths": {
-            "@cubolab/core": ["./packages/core/src/index.ts"]
+            "@cubolab/core": ["./packages/core/src/index.ts"],
+            "cubolab": ["./packages/cli/src/lib/index.ts"]
         }
     }
 }

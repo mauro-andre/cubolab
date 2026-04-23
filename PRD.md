@@ -282,6 +282,7 @@ Concluído. Conteúdo em `poc/`. Prova que a tese é sólida.
 ### Milestone 5 — Publicação
 
 - `cubolab` publicado no npm
+- **Verdaccio-based smoke test pré-publish**: registry local publica os 4 packages (core, cli, cf-shim, testing), smoke test instala via `npm install cubolab @cubolab/testing` (cenário real do consumer), valida que transitive resolution puxa cf-shim automaticamente. Prova o contrato estabelecido no PR14a que `file:` install não consegue validar (ver memória `feedback_file_install_limitation.md`).
 - Repo público no GitHub com README, docs, exemplos
 - Domínio `cubolab.dev` com landing básica
 - Post anunciando no Hacker News / Lobsters

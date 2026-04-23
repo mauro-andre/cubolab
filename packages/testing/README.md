@@ -62,9 +62,31 @@ sandbox.inspect.issuedCerts(): Promise<IssuedCert[]>               // v1: stub �
 
 Workaround enquanto isso: pra validar cert emitido num test, use `openssl s_client -connect <host>:443 -servername <name>` com `CAfile=sandbox.trustBundlePath`, ou `curl --cacert sandbox.trustBundlePath https://<name>`.
 
+## Installation
+
+```bash
+npm install --save-dev cubolab @cubolab/testing
+```
+
+Transitive deps (`@cubolab/core`, `@cubolab/cf-shim`) são resolvidos automaticamente via npm registry quando consumir do npm.
+
+### Testing locally before M5 (registry publish)
+
+`npm install file:<path>` **não resolve transitive workspace refs** — precisa passar todos os 4 packages explicitamente no install local:
+
+```bash
+npm install \
+    file:<monorepo>/packages/core \
+    file:<monorepo>/packages/cli \
+    file:<monorepo>/packages/cf-shim \
+    file:<monorepo>/packages/testing
+```
+
+Ver `docs/monorepo-resolution.md` pra rationale.
+
 ## Requisitos
 
-- `cubolab` (CLI) precisa estar disponível no sistema. Instalado via `npm i @cubolab/testing cubolab` + stack de runtime: **podman-compose** (Fedora-first) ou **Docker Compose v2**.
+- Stack de runtime: **podman-compose** (Fedora-first) ou **Docker Compose v2**.
 - `dig` no PATH pra `sandbox.inspect.dns`.
 - Host Linux com SELinux configurado (Fedora) ou sem (Ubuntu/Debian/Alpine).
 

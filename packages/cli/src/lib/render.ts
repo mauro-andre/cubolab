@@ -36,5 +36,12 @@ export const renderHuman = (report: StatusReport): string => {
     out.push(`${pc.dim("Compose tool:")}  ${report.composeTool}`);
     out.push(`${pc.dim("Host IP:")}       ${report.hostIp}`);
 
+    if (report.splitDns) {
+        const joined = report.splitDns.domains.join(", ");
+        out.push(
+            `${pc.dim("Split DNS:")}    ${pc.green("✓")} ${joined} → ${report.splitDns.hostIp}:8053  (${pc.dim(report.splitDns.method)})`,
+        );
+    }
+
     return `${out.join("\n")}\n`;
 };

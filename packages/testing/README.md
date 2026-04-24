@@ -39,6 +39,7 @@ it("creates DNS record via cf-shim", async () => {
 ```ts
 sandbox.up(options?): Promise<void>
     options.zones?: Array<{ name: string; id: string }>     // seta CUBOLAB_ZONES
+    options.domains?: readonly string[]                      // split DNS via systemd-resolved (Linux)
     options.hostIp?: string                                  // override auto-detect
     options.timeoutMs?: number                               // default 180_000
 
@@ -89,6 +90,19 @@ Ver `docs/monorepo-resolution.md` pra rationale.
 - Stack de runtime: **podman-compose** (Fedora-first) ou **Docker Compose v2**.
 - `dig` no PATH pra `sandbox.inspect.dns`.
 - Host Linux com SELinux configurado (Fedora) ou sem (Ubuntu/Debian/Alpine).
+- Split DNS opcional (via `sandbox.up({ domains })`): requer **systemd-resolved ≥ 247** + `/etc/resolv.conf` gerido por ele + sudo no terminal **uma vez** (chamadas subsequentes com mesmos domains são idempotentes e não pedem sudo).
+
+## Split DNS no setup de tests
+
+```ts
+await sandbox.up({
+    zones: [{ name: "podcubo.dev", id: "zone-v1" }],
+    domains: ["podcubo.dev"],
+});
+// Agora browser/fetch/curl do host resolve *.podcubo.dev via cubolab.
+```
+
+**Primeira vez (terminal)**: usuário roda `cubolab up podcubo.dev` manualmente, paga sudo uma vez. Depois disso, chamadas `sandbox.up({ domains: ["podcubo.dev"] })` em test setup batem no drop-in match e não tentam sudo (não travam esperando TTY). Se sudo não está disponível (CI, container sem TTY), split DNS skipa com warn, containers sobem normalmente — tests que só usam `sandbox.cloudflareApiUrl` diretamente seguem funcionando.
 
 ## Distribuição de trust no worker
 

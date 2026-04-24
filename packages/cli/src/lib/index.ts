@@ -25,5 +25,5 @@ export { runLogs } from "./logs.js";
 export type { ResetResult } from "./reset.js";
 export { runReset } from "./reset.js";
 export { collectStatus } from "./stack.js";
-export type { UpReporter, UpResult } from "./up.js";
+export type { SplitDnsOutcome, UpOptions, UpReporter, UpResult } from "./up.js";
 export { runUp } from "./up.js";

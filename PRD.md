@@ -27,7 +27,7 @@ Nasceu como satélite do [PodCubo](https://github.com/bit-cubo/podcubo) (PaaS se
 Listados em ordem de prioridade — quando houver conflito, o mais alto vence.
 
 1. **Reuse over reinvent** — cada peça pronta, mantida upstream (Pebble, challtestsrv), é preferível a código próprio equivalente.
-2. **Real > mock** — sempre que possível, exercitar o caminho real (TLS de verdade, DNS de verdade, ACME de verdade) em vez de simular resultado. **Corolário**: o caminho do dev deve ser o mesmo do prod. Se o sandbox exige um comando/script que produção não exige, o design tem gambiarra — o consumidor vai eventualmente descobrir. Melhor corrigir cedo.
+2. **Real > mock** — sempre que possível, exercitar o caminho real (TLS de verdade, DNS de verdade, ACME de verdade) em vez de simular resultado. **Corolário**: o caminho do dev deve ser o mesmo do prod. Se o sandbox exige um comando/script que produção não exige, o design tem gambiarra — o consumidor vai eventualmente descobrir. Melhor corrigir cedo. **Side effect no host local do dev** (config de resolver, trust store local, gerenciador de secrets, etc.) é aceitável quando pensa como infra do dev, análogo a `~/.kube/config` ou `ssh-agent`. **Side effect no worker ou sistema sob teste** não — esse caminho tem que ser idêntico ao de prod. **Corolário**: o caminho do dev deve ser o mesmo do prod. Se o sandbox exige um comando/script que produção não exige, o design tem gambiarra — o consumidor vai eventualmente descobrir. Melhor corrigir cedo.
 3. **Zero-config default** — `cubolab up` sem argumento deve funcionar out-of-the-box contra as convenções padrão; configuração é pra casos específicos.
 4. **Reversível sem pegada** — tudo que `up` faz, `down` desfaz. Sem sujeira residual no sistema host.
 5. **Transparência sobre mágica** — stacktrace claro, logs inspecionáveis, estado observável via CLI (`status`). Falhas devem dizer o que quebrou e onde.
@@ -77,12 +77,12 @@ Cinco quirks foram descobertos durante a POC, todos com solução clara (ver se�
 ### 6.1 CLI
 
 ```
-cubolab up        # sobe toda a stack (pebble + challtestsrv + cf-shim)
-cubolab down      # derruba tudo, restaura host
-cubolab reset     # limpa state (DNS records, certs emitidos), mantém containers
-cubolab status    # mostra o que está rodando, endpoints ativos, last errors
-cubolab logs      # tail logs agregados de todas as peças
-cubolab ca        # printa path do trust bundle pra NODE_EXTRA_CA_CERTS
+cubolab up [domains...]  # sobe stack; opcionalmente configura split DNS pros domains (Linux + systemd-resolved)
+cubolab down             # derruba tudo, restaura host (inclui reverter split DNS se aplicado)
+cubolab reset            # limpa state (DNS records, certs emitidos), mantém containers e split DNS
+cubolab status           # mostra o que está rodando, endpoints ativos, last errors, split DNS quando aplicado
+cubolab logs             # tail logs agregados de todas as peças
+cubolab ca               # printa path do trust bundle pra NODE_EXTRA_CA_CERTS
 ```
 
 Todos comandos devem:
@@ -120,6 +120,30 @@ Imagens em `ghcr.io/letsencrypt/pebble` e `ghcr.io/letsencrypt/pebble-challtests
 - `~/.cubolab/trust-bundle.pem` — concatenação pra uso em `NODE_EXTRA_CA_CERTS`, `--cacert`, etc.
 
 Bundle é regenerado apenas quando inexistente; `up` subsequente reusa.
+
+### 6.4.1 Split DNS automático (opcional, Linux + systemd-resolved)
+
+Quando o dev passa domains pro `cubolab up`:
+
+```bash
+cubolab up podcubo.dev                  # split DNS pro podcubo.dev
+cubolab up podcubo.dev foo.example      # múltiplos domains
+```
+
+O cli escreve um drop-in em `/etc/systemd/resolved.conf.d/cubolab.conf` apontando esses domínios pro challtestsrv (`DNS=<hostIp>:8053`, `Domains=~podcubo.dev`) e restarta o `systemd-resolved`. Efeito: browser/curl/qualquer app no host do dev resolve `*.podcubo.dev` via cubolab, sem `/etc/hosts` manual por app.
+
+**Preconditions** — detecção antes de tentar aplicar; skip graceful com warn claro se falhar:
+- `systemd-resolved` service ativo
+- Versão ≥ 247 (suporte a `DNS=IP:PORT`)
+- `/etc/resolv.conf` gerido pelo systemd-resolved (não NetworkManager+dnsmasq custom)
+
+**Host local vs sob teste**: split DNS é side effect no host local do dev (análogo a `~/.kube/config`), não no worker. Consistent com princípio §3.2.
+
+**Idempotência forte** — segunda chamada com mesmos domains detecta drop-in match e skip sem sudo prompt. Permite `sandbox.up({ domains })` em test setup (sem TTY): usuário paga sudo uma vez no terminal, chamadas subsequentes não travam.
+
+**Requer sudo** interativo — sudo-failed (sem TTY, sem NOPASSWD) resulta em skip graceful com instrução "run `cubolab up <domains>` from interactive terminal first".
+
+**`cubolab down`** reverte automaticamente (lê state, remove drop-in, restarta systemd-resolved).
 
 ### 6.5 Helper de teste
 

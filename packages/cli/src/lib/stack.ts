@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { paths } from "@cubolab/core";
+import { paths, readState } from "@cubolab/core";
 import type { Component, StackState, StatusReport } from "../schemas/status.js";
 import { detectCompose, listRunningContainers } from "./compose.js";
 import { CONTAINER } from "./constants.js";
@@ -77,6 +77,18 @@ export const collectStatus = async (): Promise<StatusReport> => {
 
     const components = { pebble, challtestsrv, cfShim };
 
+    // Lê state.splitDns (pode ou não existir). Só expõe no report se
+    // aplicado — campo opcional, non-breaking no schema v1.
+    const splitDnsState = existsSync(paths.state) ? readState().splitDns : undefined;
+    const splitDnsReport = splitDnsState
+        ? {
+              domains: splitDnsState.domains,
+              hostIp: splitDnsState.hostIp,
+              method: splitDnsState.method,
+              appliedAt: splitDnsState.appliedAt,
+          }
+        : undefined;
+
     return {
         version: 1,
         stack: deriveStack([pebble, challtestsrv, cfShim]),
@@ -84,5 +96,6 @@ export const collectStatus = async (): Promise<StatusReport> => {
         trustBundle: { path: paths.trustBundle, exists: existsSync(paths.trustBundle) },
         composeTool,
         hostIp,
+        ...(splitDnsReport ? { splitDns: splitDnsReport } : {}),
     };
 };

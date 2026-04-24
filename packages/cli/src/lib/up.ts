@@ -1,7 +1,7 @@
 import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureState, paths } from "@cubolab/core";
+import { ensureState, paths, readState, type SplitDnsState, writeState } from "@cubolab/core";
 import { execa } from "execa";
 import type { ComposeTool } from "../schemas/status.js";
 import { assetsDir } from "./assets.js";
@@ -10,13 +10,37 @@ import { COMPOSE_PROJECT } from "./constants.js";
 import { ensurePebbleCert } from "./ensureCert.js";
 import { detectHostIp } from "./hostIp.js";
 import { probeHttp } from "./probe.js";
+import { detectResolverSupport } from "./resolverDetect.js";
+import {
+    applySplitDns,
+    DROP_IN_PATH,
+    detectOrphanDropIn,
+    removeSplitDns,
+    validateDomain,
+} from "./splitDns.js";
 import { ensureTrustBundle } from "./trustBundle.js";
+
+export type UpOptions = {
+    // Lista opcional de domains pra configurar split DNS via systemd-resolved.
+    // Se vazia/ausente, skip split DNS (comportamento pré-PR19 preservado).
+    // Validados como FQDN lowercase, dedupe + sort antes de aplicar.
+    domains?: readonly string[];
+};
+
+// Status do split DNS após o `up`. Feito pra reporter consumir e pra CLI
+// exibir em output.
+export type SplitDnsOutcome =
+    | { state: "not-requested" }
+    | { state: "applied"; domains: readonly string[]; hostIp: string }
+    | { state: "already-matches"; domains: readonly string[]; hostIp: string }
+    | { state: "skipped"; reason: string };
 
 export type UpResult = {
     hostIp: string;
     composeTool: ComposeTool;
     certGenerated: boolean;
     trustBundleDownloaded: boolean;
+    splitDns: SplitDnsOutcome;
 };
 
 export type UpReporter = {
@@ -83,8 +107,81 @@ const runCompose = async (tool: ComposeTool, subargs: readonly string[]): Promis
     });
 };
 
+// Detecta drop-in órfão (arquivo presente sem entry correspondente em
+// state.splitDns) e tenta limpar. Cenário: `cubolab up domain` crashou entre
+// `applySplitDns` e `writeState` → drop-in aplicado mas não registrado. Na
+// próxima `up`, user (ou sandbox) espera que split DNS seja reconfigurado
+// conforme input — o orphan tem que sair antes pra evitar conflito silencioso.
+const cleanupOrphanDropIn = async (reporter: UpReporter): Promise<void> => {
+    const hasOrphan = await detectOrphanDropIn();
+    if (!hasOrphan) return;
+
+    const state = readState();
+    if (state.splitDns?.dropInPath === DROP_IN_PATH) return; // não é orphan
+
+    reporter.info("split DNS: cleaning up orphan drop-in from previous run");
+    const rm = await removeSplitDns(DROP_IN_PATH);
+    if (rm.removed === false && rm.reason === "sudo-failed") {
+        reporter.info(`split DNS: couldn't remove orphan drop-in (${rm.detail})`);
+        // Não aborta — up continua sem split DNS ativo
+    }
+};
+
+const handleSplitDns = async (
+    hostIp: string,
+    domains: readonly string[],
+    reporter: UpReporter,
+): Promise<SplitDnsOutcome> => {
+    const support = await detectResolverSupport();
+    if (!support.supported) {
+        reporter.info(`split DNS: skipped (${support.reason})`);
+        return { state: "skipped", reason: support.reason };
+    }
+
+    const result = await applySplitDns({ hostIp, domains });
+
+    if (result.applied) {
+        const entry: SplitDnsState = {
+            domains: result.info.domains,
+            appliedAt: result.info.appliedAt,
+            method: "systemd-resolved",
+            dropInPath: result.info.dropInPath,
+            hostIp: result.info.hostIp,
+        };
+        const state = readState();
+        writeState({ ...state, splitDns: entry });
+        reporter.info(`split DNS: ${domains.join(", ")} → ${hostIp}:8053`);
+        return { state: "applied", domains: result.info.domains, hostIp: result.info.hostIp };
+    }
+
+    if (result.reason === "already-matches") {
+        // State pode estar ausente mesmo com drop-in match (ex: state zerado
+        // manualmente). Re-escrevemos pra alinhar; idempotente.
+        const state = readState();
+        if (!state.splitDns) {
+            const entry: SplitDnsState = {
+                domains: Array.from(new Set(domains)).sort(),
+                appliedAt: new Date().toISOString(),
+                method: "systemd-resolved",
+                dropInPath: DROP_IN_PATH,
+                hostIp,
+            };
+            writeState({ ...state, splitDns: entry });
+        }
+        reporter.info("split DNS: already configured (drop-in matches)");
+        return { state: "already-matches", domains: [...domains], hostIp };
+    }
+
+    // sudo-failed
+    reporter.info(`split DNS: skipped (${result.detail})`);
+    return { state: "skipped", reason: result.detail };
+};
+
 // Orquestra bring-up idempotente. Cada passo é seguro pra re-run.
-export const runUp = async (reporter: UpReporter = NOOP_REPORTER): Promise<UpResult> => {
+export const runUp = async (
+    reporter: UpReporter = NOOP_REPORTER,
+    options: UpOptions = {},
+): Promise<UpResult> => {
     // 1. ~/.cubolab/ exists
     mkdirSync(paths.base, { recursive: true });
 
@@ -105,6 +202,15 @@ export const runUp = async (reporter: UpReporter = NOOP_REPORTER): Promise<UpRes
     // presente. Leitura/escrita do state em runtime é responsabilidade
     // exclusiva do cf-shim (via endpoints CRUD + /_admin/clear).
     ensureState();
+
+    // 5b. Valida domains cedo (antes de subir containers) — erro imediato
+    // em domain malformed, sem deixar stack up "quebrada" pelo meio.
+    const normalizedDomains = (options.domains ?? []).map(validateDomain);
+
+    // 5c. Cleanup de orphan drop-in de run anterior que tenha crashado entre
+    // applySplitDns e writeState. Roda independente de `options.domains` —
+    // user pode rodar `cubolab up` sem domains pra acabar de limpar o orphan.
+    await cleanupOrphanDropIn(reporter);
 
     // 6. detect compose tool
     const composeTool = await detectCompose();
@@ -133,5 +239,13 @@ export const runUp = async (reporter: UpReporter = NOOP_REPORTER): Promise<UpRes
     // existe (passo 5); o container cf-shim lê, re-registra no challtestsrv
     // via /add-* no boot, e só então serve HTTP.
 
-    return { hostIp, composeTool, certGenerated, trustBundleDownloaded };
+    // 10. Split DNS (último passo — requer cf-shim up; se falhar, containers
+    // ficam up). Só aplica quando user passou domains. Janela sem race pra
+    // writeState: stack subiu, consumer ainda não fez API calls.
+    const splitDns: SplitDnsOutcome =
+        normalizedDomains.length > 0
+            ? await handleSplitDns(hostIp, normalizedDomains, reporter)
+            : { state: "not-requested" };
+
+    return { hostIp, composeTool, certGenerated, trustBundleDownloaded, splitDns };
 };

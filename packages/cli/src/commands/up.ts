@@ -11,11 +11,15 @@ const ttyReporter: UpReporter = {
 
 export const upCommand = (): Command =>
     new Command("up")
-        .description("sobe a stack (pebble + challtestsrv) de forma idempotente")
-        .action(async () => {
+        .description("sobe a stack (pebble + challtestsrv + cf-shim) de forma idempotente")
+        .argument(
+            "[domains...]",
+            "domains pra configurar split DNS via systemd-resolved (opcional, Linux)",
+        )
+        .action(async (domains: string[]) => {
             try {
                 process.stdout.write(`${pc.bold("cubolab up")}\n\n`);
-                const result = await runUp(ttyReporter);
+                const result = await runUp(ttyReporter, { domains });
                 process.stdout.write(
                     `  ${pc.dim("cert:")}         ${result.certGenerated ? "generated" : "reused"}\n`,
                 );

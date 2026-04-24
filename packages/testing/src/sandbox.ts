@@ -7,6 +7,11 @@ import { type IssuedCert, listIssuedCerts } from "./inspect/issuedCerts.js";
 
 export type SandboxUpOptions = {
     zones?: Array<{ name: string; id: string }>;
+    // Domains pra configurar split DNS via systemd-resolved (Linux). Skip
+    // graceful se systemd-resolved ausente, versão < 247, ou sudo não
+    // disponível (test setup sem TTY). Idempotente: segunda chamada com
+    // mesmos domains bate no drop-in match e não tenta sudo de novo.
+    domains?: readonly string[];
     hostIp?: string;
     timeoutMs?: number;
 };
@@ -43,7 +48,7 @@ export const sandbox: Sandbox = {
         if (options.hostIp) {
             process.env.CUBOLAB_HOST_IP = options.hostIp;
         }
-        await runUp();
+        await runUp(undefined, { domains: options.domains ?? [] });
     },
 
     async down() {

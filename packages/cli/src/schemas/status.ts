@@ -17,6 +17,13 @@ export const componentSchema = z.object({
     endpoints: z.record(z.string(), z.string()),
 });
 
+export const splitDnsReportSchema = z.object({
+    domains: z.array(z.string()).min(1),
+    hostIp: z.string(),
+    method: z.literal("systemd-resolved"),
+    appliedAt: z.string(),
+});
+
 export const statusReportSchema = z.object({
     version: z.literal(1),
     stack: z.enum(["up", "down", "partial"]),
@@ -27,9 +34,13 @@ export const statusReportSchema = z.object({
     }),
     composeTool: z.enum(["podman-compose", "docker compose", "docker-compose"]),
     hostIp: z.string(),
+    // Ausente quando split DNS não está aplicado (default). Non-breaking add
+    // no schema v1: consumers antigos ignoram silenciosamente.
+    splitDns: splitDnsReportSchema.optional(),
 });
 
 export type Component = z.infer<typeof componentSchema>;
+export type SplitDnsReport = z.infer<typeof splitDnsReportSchema>;
 export type StatusReport = z.infer<typeof statusReportSchema>;
 export type ComposeTool = StatusReport["composeTool"];
 export type StackState = StatusReport["stack"];
